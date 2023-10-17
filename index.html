@@ -1,0 +1,190 @@
+<!-- vim: sw=2 ts=2 expandtab smartindent ft=javascript
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title> stickfort </title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="description" content="" />
+  <style>
+  document, body {
+    margin: 0px;
+    padding: 0px;
+    overflow: hidden;
+  }
+  </style>
+</head>
+<body>
+  <canvas id="p1"></canvas>
+  <script>
+"use strict";
+
+function rect({ min_x = Infinity, min_y = Infinity, max_x = -Infinity, max_y = -Infinity } = {}) {
+  return { min_x, min_y, max_x, max_y };
+};
+
+const ui_SizeKind_Null            = 0;
+const ui_SizeKind_Pixels          = 1:
+const ui_SizeKind_TextContent     = 2;
+const ui_SizeKind_PercentOfParent = 3;
+const ui_SizeKind_ChildrenSum     = 4;
+
+const ui_WidgetFlag_Clickable       = (1<<0);
+const ui_WidgetFlag_ViewScroll      = (1<<1);
+const ui_WidgetFlag_DrawText        = (1<<2);
+const ui_WidgetFlag_DrawBorder      = (1<<3);
+const ui_WidgetFlag_DrawBackground  = (1<<4);
+const ui_WidgetFlag_DrawDropShadow  = (1<<5);
+const ui_WidgetFlag_Clip            = (1<<6);
+const ui_WidgetFlag_HotAnimation    = (1<<7);
+const ui_WidgetFlag_ActiveAnimation = (1<<8);
+
+function ui_size({ kind = ui_SizeKind_Null, value = 0, strictness = 0 }={}) {
+  return { kind, value, strictness };
+};
+
+/* low-level constructor for ui_widget */
+function ui_widget({
+  first = null,
+  last = null,
+  next = null,
+  prev = null,
+  parent = null,
+
+  key = "",
+  last_frame_touched_index = 0,
+
+  widget_flags = 0,
+  string = "",
+  semantic_size_x = ui_size(),
+  semantic_size_y = ui_size(),
+
+  computed_rel_position_x = 0,
+  computed_rel_position_y = 0,
+  computed_size_x = 0,
+  computed_size_y = 0,
+  rect = rect(),
+}={}) {
+  return {
+    first,
+    last,
+    next,
+    prev,
+    parent,
+
+    /* key + generation */
+    key,
+    last_frame_touched_index,
+
+    /* per-frame info provided by builders */
+    widget_flags,
+    string,
+    semantic_size_x,
+    semantic_size_y,
+
+    /* recomputed every frame */
+    computed_rel_position_x,
+    computed_rel_position_y,
+    computed_size_x,
+    computed_size_y,
+    rect,
+  };
+}
+
+function ui_comm({
+  widget = null,
+  mouse_x = 0,
+  mouse_y = 0,
+  drag_delta_x = 0,
+  drag_delta_y = 0,
+
+  clicked = false,
+  double_clicked = false,
+  right_clicked = false,
+  pressed = false,
+  released = false,
+  dragging = false,
+  hovering = false,
+}={}) {
+  return {
+    widget,
+    mouse_x,
+    mouse_y,
+    drag_delta_x,
+    drag_delta_y,
+
+    clicked,
+    double_clicked,
+    right_clicked,
+    pressed,
+    released,
+    dragging,
+    hovering,
+  }
+}
+
+/* high-level constructor for widget */
+function ui_widget_make(flags, string) {
+  const widgey = ui_widget();
+  widgey.widget_flags = flags;
+  widgey.string = string;
+  return widgey;
+}
+
+function ui_comm_from_widget() {
+}
+
+function ui_button() {
+  const widgey = ui_widget_make(
+      ui_WidgetFlag_Clickable        |
+        ui_WidgetFlag_DrawBorder     |
+        ui_WidgetFlag_DrawText       |
+        ui_WidgetFlag_DrawBackground |
+        ui_WidgetFlag_HotAnimation   |
+        ui_WidgetFlag_ActiveAnimation,
+      string
+  );
+
+  return ui_comm_from_widget(widget);
+}
+
+function ui_parent_push() {
+}
+
+
+const canvas = document.getElementById("p1");
+const ctx = canvas.getContext("2d");
+
+(window.onresize = () => {
+  const dpi = window.devicePixelRatio;
+  canvas.width = window.innerWidth*dpi;
+  canvas.height = window.innerHeight*dpi;
+  canvas.style.width = window.innerWidth+'px';
+  canvas.style.height = window.innerHeight+'px';
+})();
+
+requestAnimationFrame(function frame() {
+	requestAnimationFrame(frame);
+
+  ctx.fillStyle = 'rgb(225, 215, 195)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  {
+    let i = 0;
+    while (true) {
+      const y = 220 + i*65;
+      if (y > canvas.height) break;
+
+      ctx.fillStyle = 'rgb(215, 175, 155)';
+      ctx.fillRect(0, y, canvas.width, 3);
+      i++;
+    }
+  }
+
+  ctx.fillStyle = '#9dabdd';
+  ctx.fillRect(220, 0, 4, canvas.height);
+});
+  </script>
+</body>
+</html>
