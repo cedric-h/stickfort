@@ -20,12 +20,24 @@
   <script>
 "use strict";
 
-function rect({ min_x = Infinity, min_y = Infinity, max_x = -Infinity, max_y = -Infinity } = {}) {
-  return { min_x, min_y, max_x, max_y };
+function rect(arg = {}) {
+  return {
+    min_x: arg.min_x ??  Infinity,
+    min_y: arg.min_y ??  Infinity,
+    max_x: arg.max_x ?? -Infinity,
+    max_y: arg.max_y ?? -Infinity
+  };
 };
 
+function rect_contains(rect, x, y) {
+  return (x > rect.min_x) &&
+         (y > rect.min_y) &&
+         (x < rect.max_x) &&
+         (y < rect.max_y);
+}
+
 const ui_SizeKind_Null            = 0;
-const ui_SizeKind_Pixels          = 1:
+const ui_SizeKind_Pixels          = 1;
 const ui_SizeKind_TextContent     = 2;
 const ui_SizeKind_PercentOfParent = 3;
 const ui_SizeKind_ChildrenSum     = 4;
@@ -40,102 +52,95 @@ const ui_WidgetFlag_Clip            = (1<<6);
 const ui_WidgetFlag_HotAnimation    = (1<<7);
 const ui_WidgetFlag_ActiveAnimation = (1<<8);
 
-function ui_size({ kind = ui_SizeKind_Null, value = 0, strictness = 0 }={}) {
-  return { kind, value, strictness };
+function ui_size(arg={}) {
+  return {
+    kind:       arg.kind       ?? ui_SizeKind_Null,
+    value:      arg.value      ?? 0,
+    strictness: arg.strictness ?? 0
+  };
 };
 
 /* low-level constructor for ui_widget */
-function ui_widget({
-  first = null,
-  last = null,
-  next = null,
-  prev = null,
-  parent = null,
-
-  key = "",
-  last_frame_touched_index = 0,
-
-  widget_flags = 0,
-  string = "",
-  semantic_size_x = ui_size(),
-  semantic_size_y = ui_size(),
-
-  computed_rel_position_x = 0,
-  computed_rel_position_y = 0,
-  computed_size_x = 0,
-  computed_size_y = 0,
-  rect = rect(),
-}={}) {
+function ui_widget(arg={}) {
   return {
-    first,
-    last,
-    next,
-    prev,
-    parent,
+    first:  arg.first  ?? null,
+    last:   arg.last   ?? null,
+    next:   arg.next   ?? null,
+    prev:   arg.prev   ?? null,
+    parent: arg.parent ?? null,
 
-    /* key + generation */
-    key,
-    last_frame_touched_index,
+    key:                      arg.key                      ?? "",
+    last_frame_touched_index: arg.last_frame_touched_index ?? 0,
 
-    /* per-frame info provided by builders */
-    widget_flags,
-    string,
-    semantic_size_x,
-    semantic_size_y,
+    widget_flags:    arg.widget_flags    ?? 0,
+    string:          arg.string          ?? "",
+    semantic_size_x: arg.semantic_size_x ?? ui_size(),
+    semantic_size_y: arg.semantic_size_y ?? ui_size(),
 
-    /* recomputed every frame */
-    computed_rel_position_x,
-    computed_rel_position_y,
-    computed_size_x,
-    computed_size_y,
-    rect,
+    computed_rel_position_x: arg.computed_rel_position_x ?? 0,
+    computed_rel_position_y: arg.computed_rel_position_y ?? 0,
+    computed_size_x:         arg.computed_size_x         ?? 0,
+    computed_size_y:         arg.computed_size_y         ?? 0,
+    rect:                    arg.rect                    ?? rect(),
   };
 }
 
-function ui_comm({
-  widget = null,
-  mouse_x = 0,
-  mouse_y = 0,
-  drag_delta_x = 0,
-  drag_delta_y = 0,
-
-  clicked = false,
-  double_clicked = false,
-  right_clicked = false,
-  pressed = false,
-  released = false,
-  dragging = false,
-  hovering = false,
-}={}) {
+function ui_comm(arg={}) {
   return {
-    widget,
-    mouse_x,
-    mouse_y,
-    drag_delta_x,
-    drag_delta_y,
+    widget:       arg.widget       ?? null,
+    mouse_x:      arg.mouse_x      ?? 0,
+    mouse_y:      arg.mouse_y      ?? 0,
+    drag_delta_x: arg.drag_delta_x ?? 0,
+    drag_delta_y: arg.drag_delta_y ?? 0,
 
-    clicked,
-    double_clicked,
-    right_clicked,
-    pressed,
-    released,
-    dragging,
-    hovering,
+    clicked:        arg.clicked        ?? false,
+    double_clicked: arg.double_clicked ?? false,
+    right_clicked:  arg.right_clicked  ?? false,
+    pressed:        arg.pressed        ?? false,
+    released:       arg.released       ?? false,
+    dragging:       arg.dragging       ?? false,
+    hovering:       arg.hovering       ?? false,
   }
 }
 
+let __ui_parent_stack = [];
+function ui_push_parent(parent) { __ui_parent_stack.push(parent); }
+function ui_pop_parent()        { return __ui_parent_stack.pop(); }
+
 /* high-level constructor for widget */
 function ui_widget_make(flags, string) {
-  const widgey = ui_widget();
-  widgey.widget_flags = flags;
-  widgey.string = string;
+  const parent = __ui_parent_stack.length ? __ui_parent_stack[0] : null;
+
+  const widgey = ui_widget({ flags, string, parent });
   return widgey;
 }
 
-function ui_comm_from_widget() {
+function ui_comm_from_widget(widget) {
+  comm.widget = widget;
+
+  const hovering = rect_contains(widget.rect, comm.mouse_x, comm.mouse_y);
+
+  comm.mouse_x = input.mouse.x - comm.rect.min_x;
+  comm.mouse_y = input.mouse.y - comm.rect.min_y;
+
+  if (hovering) {
+    comm.drag_delta_x = (input.mouse.x - input.last_mouse.x);
+    comm.drag_delta_y = (input.mouse.y - input.last_mouse.y);
+
+    comm.clicked = input.clicked;
+    comm.double_clicked = input.double_clicked;
+    comm.right_click = input.right_clicked;
+    comm.pressed = input.mousedown;
+    comm.released = !input.mousedown; /* TODO: track if previously pressed
+                                       * so release is meaningful? */
+    comm.dragging = (Math.abs(comm.drag_delta_x) > 0) ||
+                    (Math.abs(comm.drag_delta_y) > 0);
+    comm.hovering = hovering;
+
+  }
 }
 
-function ui_button() {
+function ui_button(string) {
   const widgey = ui_widget_make(
       ui_WidgetFlag_Clickable        |
         ui_WidgetFlag_DrawBorder     |
@@ -147,9 +152,6 @@ function ui_button() {
   );
 
   return ui_comm_from_widget(widget);
-}
-
-function ui_parent_push() {
 }
 
 
@@ -165,7 +167,7 @@ const ctx = canvas.getContext("2d");
 })();
 
 requestAnimationFrame(function frame() {
-	requestAnimationFrame(frame);
+  requestAnimationFrame(frame);
 
   ctx.fillStyle = 'rgb(225, 215, 195)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
