@@ -36,11 +36,11 @@ function rect_contains(rect, x, y) {
          (y < rect.max_y);
 }
 
-const ui_SizeKind_Null            = 0;
-const ui_SizeKind_Pixels          = 1;
-const ui_SizeKind_TextContent     = 2;
-const ui_SizeKind_PercentOfParent = 3;
-const ui_SizeKind_ChildrenSum     = 4;
+const ui_SizeKind_Null        = 0;
+const ui_SizeKind_Pixels      = 1;
+const ui_SizeKind_TextContent = 2;
+const ui_SizeKind_OfParent    = 3;
+const ui_SizeKind_ChildrenSum = 4;
 
 const ui_WidgetFlag_Clickable       = (1<<0);
 const ui_WidgetFlag_ViewScroll      = (1<<1);
@@ -56,7 +56,7 @@ function ui_size(arg={}) {
   return {
     kind:       arg.kind       ?? ui_SizeKind_Null,
     value:      arg.value      ?? 0,
-    strictness: arg.strictness ?? 0
+    strictness: arg.strictness ?? 1
   };
 };
 
@@ -82,6 +82,8 @@ function ui_widget(arg={}) {
     computed_size_x:         arg.computed_size_x         ?? 0,
     computed_size_y:         arg.computed_size_y         ?? 0,
     rect:                    arg.rect                    ?? rect(),
+
+    layout_axis: arg.layout_axis ?? 0,
   };
 }
 
@@ -110,15 +112,27 @@ function ui_pop_parent()        { return __ui_parent_stack.pop(); }
 /* high-level constructor for widget */
 function ui_widget_make(flags, string) {
   const parent = __ui_parent_stack.length ? __ui_parent_stack[0] : null;
+  const widgey = ui_widget({ flags, string, parent }); /* not to be confused with pidgey */
 
-  const widgey = ui_widget({ flags, string, parent });
+  /* connect widget into linked list */
+  const older_sibling = parent.last;
+  if (older_sibling) {
+    older_sibling.next = widgey;
+    widgey.prev = older_sibling;
+  } else {
+    parent.first = widgey;
+  }
+  parent.last = widgey;
+
   return widgey;
 }
 
-function ui_comm_from_widget(widget) {
-  comm.widget = widget;
+function ui_comm_from_widget(widgey) {
+  comm.widget = widgey;
 
-  const hovering = rect_contains(widget.rect, comm.mouse_x, comm.mouse_y);
+  if (widgey.flags & ui_WidgetFlag_Clickable) {
+
+  const hovering = rect_contains(widgey.rect, comm.mouse_x, comm.mouse_y);
 
   comm.mouse_x = input.mouse.x - comm.rect.min_x;
   comm.mouse_y = input.mouse.y - comm.rect.min_y;
@@ -151,7 +165,103 @@ function ui_button(string) {
       string
   );
 
-  return ui_comm_from_widget(widget);
+  if (widgey.computed_size_x.kind == ui_SizeKind_Null) {
+    widgey.computed_size_x.kind = ui_SizeKind_Pixels;
+    widgey.computed_size_x.value = 40;
+  }
+
+  if (widgey.computed_size_y.kind == ui_SizeKind_Null) {
+    widgey.computed_size_y.kind = ui_SizeKind_OfParent;
+    widgey.computed_size_y.value = 1;
+  }
+
+  return ui_comm_from_widget(widgey);
+}
+
+
+const root = ui_widget({
+  semantic_size_x: ui_size({ kind: ui_SizeKind_Pixels })
+  semantic_size_y: ui_size({ kind: ui_SizeKind_Pixels })
+  key: "$__i_am_ROOT__$",
+});
+
+function ui_start() {
+  root.semantic_size_x.value = canvas.width;
+  root.semantic_size_y.value = canvas.height;
+
+  ui_push_parent(root);
+}
+
+function ui_end() {
+  const end = ui_pop_parent();
+  if (end != root) throw "YOU LEFT A UI ON THE STACK! BAD BOY.";
+
+  (function walk_layout_standalone(widgey) {
+
+    if (widgey.semantic_size_x.kind == ui_SizeKind_Pixels) {
+      widgey.computed_size_x = widgey.semantic_size_x.value;
+    }
+
+    if (widgey.semantic_size_y.kind == ui_SizeKind_Pixels) {
+      widgey.computed_size_y = widgey.semantic_size_y.value;
+    }
+
+    if (widgey.first) walk_layout(widgey.first);
+    if (widgey.next) walk_layout(widgey.next);
+  })(root);
+
+  (function walk_layout_position(widgey, x, y) {
+
+    if (widgey.layout_axis == 0) {
+      x += widgey.computed_size_x;
+    } else {
+      y += widgey.computed_size_y;
+    }
+
+    if (widgey.first) walk_layout(widgey.first, 0, 0);
+    if (widgey.next) walk_layout(widgey.next, x, y);
+
+  })(root, 0, 0);
+
+  (function walk_draw(widgey) {
+
+    if (widgey.flags & ui_WidgetFlag_Clickable) {
+      /* change mouse icon to pointer? */
+    }
+
+    if (widgey.flags & ui_WidgetFlag_ViewScroll) {
+      /* hmm ... */
+    }
+
+    if (widgey.flags & ui_WidgetFlag_DrawText) {
+    }
+
+    if (widgey.flags & ui_WidgetFlag_DrawBorder) {
+    }
+
+    if (widgey.flags & ui_WidgetFlag_DrawBackground) {
+    }
+
+    if (widgey.flags & ui_WidgetFlag_DrawDropShadow) {
+      /* hmm ... */
+    }
+
+    if (widgey.flags & ui_WidgetFlag_Clip) {
+      /* hmm ... */
+    }
+
+    if (widgey.flags & ui_WidgetFlag_HotAnimation) {
+      /* hmm ... */
+    }
+    
+    if (widgey.flags & ui_WidgetFlag_ActiveAnimation) {
+      /* hmm ... */
+    }
+
+
+    if (widgey.first) walk_draw(widgey.first);
+    if (widgey.next) walk_draw(widgey.next);
+  })(root);
 }
 
 
@@ -186,6 +296,10 @@ requestAnimationFrame(function frame() {
 
   ctx.fillStyle = '#9dabdd';
   ctx.fillRect(220, 0, 4, canvas.height);
+
+  ui_start();
+  ui_button("click me, bitch!");
+  ui_end();
 });
   </script>
 </body>
